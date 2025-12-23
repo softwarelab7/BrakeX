@@ -479,36 +479,170 @@ document.addEventListener('DOMContentLoaded', () => {
         manufacturerTagsContainer: document.getElementById('manufacturer-tags-container') as HTMLElement
     };
 
-    // === Gestión del historial de búsqueda ===
-    function addToSearchHistory(query: string) {
-        if (!query.trim()) return;
-        let history: string[] = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
-        // Prevenir duplicados (ignorando mayúsculas/minúsculas)
-        history = history.filter(q => q.toLowerCase() !== query.toLowerCase());
-        history.unshift(query);
-        history = history.slice(0, MAX_HISTORY);
+    // === Smart History System (State-Based with Intelligence) ===
+    interface HistoryItem {
+        id: string;
+        summary: string;
+        filters: {
+            busqueda?: string;
+            marca?: string;
+            modelo?: string;
+            anio?: string;
+            oem?: string;
+            fmsi?: string;
+        };
+        timestamp: number;
+        frequency: number;
+        resultCount?: number;
+    }
+
+    const generateHistoryId = (f: HistoryItem['filters']) => {
+        return Object.entries(f).sort().map(([k, v]) => `${k}:${v}`).join('|');
+    };
+
+    const getRelativeTime = (timestamp: number): string => {
+        const now = Date.now();
+        const diff = now - timestamp;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+
+        if (minutes < 1) return 'Ahora';
+        if (minutes < 60) return `Hace ${minutes} min`;
+        if (hours < 24) return `Hace ${hours}h`;
+        if (days === 1) return 'Ayer';
+        if (days < 7) return `Hace ${days} días`;
+        return new Date(timestamp).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
+    };
+
+    function saveCurrentStateToHistory(resultCount?: number) {
+        const activeFilters: HistoryItem['filters'] = {};
+        const summaries: string[] = [];
+
+        if (els.busqueda.value.trim()) {
+            activeFilters.busqueda = els.busqueda.value.trim();
+            summaries.push(`🔍 ${els.busqueda.value.trim()}`);
+        }
+        if (els.marca.value.trim()) {
+            activeFilters.marca = els.marca.value.trim();
+            summaries.push(`🏷️ ${els.marca.value.trim()}`);
+        }
+        if (els.modelo.value.trim()) {
+            activeFilters.modelo = els.modelo.value.trim();
+            summaries.push(`🚗 ${els.modelo.value.trim()}`);
+        }
+        if (els.anio.value.trim()) {
+            activeFilters.anio = els.anio.value.trim();
+            summaries.push(`📅 ${els.anio.value.trim()}`);
+        }
+        if (els.oem.value.trim()) {
+            activeFilters.oem = els.oem.value.trim();
+            summaries.push(`#️⃣ ${els.oem.value.trim()}`);
+        }
+        if (els.fmsi.value.trim()) {
+            activeFilters.fmsi = els.fmsi.value.trim();
+            summaries.push(`📄 ${els.fmsi.value.trim()}`);
+        }
+
+        if (summaries.length === 0) return;
+
+        const id = generateHistoryId(activeFilters);
+        const rawHistory = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
+
+        let history: HistoryItem[] = rawHistory.map((item: any) => {
+            if (typeof item === 'string') return { id: item, summary: item, filters: { busqueda: item }, timestamp: Date.now(), frequency: 1 };
+            if (item.query && item.type) return { id: item.query, summary: item.query, filters: { [item.type === 'general' ? 'busqueda' : item.type]: item.query }, timestamp: Date.now(), frequency: 1 };
+            return item;
+        });
+
+        const existing = history.find(h => h.id === id);
+
+        if (existing) {
+            existing.frequency = (existing.frequency || 1) + 1;
+            existing.timestamp = Date.now();
+            if (resultCount !== undefined) existing.resultCount = resultCount;
+            history = history.filter(h => h.id !== id);
+            history.unshift(existing);
+        } else {
+            history.unshift({
+                id,
+                summary: summaries.join(' · '),
+                filters: activeFilters,
+                timestamp: Date.now(),
+                frequency: 1,
+                resultCount
+            });
+        }
+
+        history = history.slice(0, 8);
         localStorage.setItem('brakeXSearchHistory', JSON.stringify(history));
         renderSearchHistory();
     }
 
-    function deleteFromSearchHistory(query: string) {
-        if (!query.trim()) return;
-        let history: string[] = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
-        history = history.filter(q => q !== query);
+    function deleteFromSearchHistory(id: string) {
+        const rawHistory = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
+        const history = rawHistory.filter((h: any) => (h.id || h.query || h) !== id);
         localStorage.setItem('brakeXSearchHistory', JSON.stringify(history));
         renderSearchHistory();
     }
 
     function renderSearchHistory() {
-        const history: string[] = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
         const container = els.searchHistoryContainer;
         if (!container) return;
-        container.innerHTML = history.map(q =>
-            `<button class="search-history-item" data-query="${q}">
-                ${q}
-                <span class="delete-history-item" data-query-delete="${q}" role="button" aria-label="Eliminar ${q}">&times;</span>
-            </button>`
-        ).join('');
+
+        const rawHistory = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
+        const history: HistoryItem[] = rawHistory.map((item: any) => {
+            if (typeof item === 'string') return { id: item, summary: item, filters: { busqueda: item }, timestamp: Date.now(), frequency: 1 };
+            if (item.query && item.type) return { id: item.query, summary: item.query, filters: { [item.type === 'general' ? 'busqueda' : item.type]: item.query }, timestamp: Date.now(), frequency: 1 };
+            return item;
+        });
+
+        if (history.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-secondary); font-size:0.85rem; padding:12px; text-align:center; opacity:0.7;">Tu historial está vacío. Realiza una búsqueda para empezar.</p>';
+            return;
+        }
+
+        container.innerHTML = history.map(h => `
+            <div class="smart-history-card" data-history-id="${h.id}">
+                <div class="history-card-header">
+                    <div class="history-card-summary">${h.summary}</div>
+                    <button class="history-delete-btn" data-id-delete="${h.id}" aria-label="Eliminar">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="history-card-meta">
+                    <span class="history-meta-item">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        ${getRelativeTime(h.timestamp)}
+                    </span>
+                    ${h.frequency && h.frequency > 1 ? `
+                        <span class="history-meta-item frequency">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                            </svg>
+                            ${h.frequency}x
+                        </span>
+                    ` : ''}
+                    ${h.resultCount !== undefined ? `
+                        <span class="history-meta-item results">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3h7v7H3z"></path>
+                                <path d="M14 3h7v7h-7z"></path>
+                                <path d="M14 14h7v7h-7z"></path>
+                                <path d="M3 14h7v7H3z"></path>
+                            </svg>
+                            ${h.resultCount}
+                        </span>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
     }
 
     // === Gestión de favoritos ===
@@ -936,11 +1070,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const filters = getActiveFilters();
 
-        // Guardar en historial SÓLO SI hay un término de búsqueda (Mejora de Historial)
-        if (filters.busqueda) {
-            addToSearchHistory(els.busqueda.value.trim()); // Usamos el valor original sin normalizar
-        }
-
         const isFiltered = Object.values(filters).some(v =>
             v !== null && v !== false &&
             (!Array.isArray(v) || v.length > 0) &&
@@ -959,6 +1088,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return FILTER_STRATEGIES[key] ? FILTER_STRATEGIES[key](item, value) : true;
             });
         });
+
+        els.countContainer.innerHTML = appState.filtered.length === 1
+            ? '1 resultado'
+            : `${appState.filtered.length} resultados`;
 
         // El resto sigue igual
         // --- ORDENAMIENTO PERSONALIZADO (Mejora: Prioridad "Ambas") ---
@@ -1039,6 +1172,16 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDropdown('oemList', Array.from(uniqueOems).sort(sortAlpha));
         updateDropdown('fmsiList', Array.from(uniqueFmsis).sort(sortAlpha));
         // --- FIN: POBLAR DROPDOWNS ---
+
+        // Save to smart history with result count (only if there are active filters)
+        const hasActiveFilters = Object.values(filters).some(v =>
+            v !== null && v !== false &&
+            (!Array.isArray(v) || v.length > 0) &&
+            (typeof v !== 'string' || v.trim() !== '')
+        );
+        if (hasActiveFilters) {
+            saveCurrentStateToHistory(appState.filtered.length);
+        }
     };
 
     // --- FIN: BLOQUE DE FILTRADO REFACTORIZADO ---
@@ -1259,11 +1402,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Mostramos un resumen más limpio de aplicaciones
-            const appSummaryItems = safeAplicaciones
+            // Mostramos un resumen más limpio de aplicaciones (Reduced)
+            const uniqueApps = safeAplicaciones
                 .map(app => `${app.marca} ${app.serie}`)
-                .filter((value, index, self) => self.indexOf(value) === index)
-                .slice(0, 3);
+                .filter((value, index, self) => self.indexOf(value) === index);
+
+            const displayApps = uniqueApps.slice(0, 2);
+            if (uniqueApps.length > 2) {
+                displayApps.push(`+${uniqueApps.length - 2} más`);
+            }
+            const appSummaryItems = displayApps;
 
             const primaryRefForData = (Array.isArray(item.ref) && item.ref.length > 0) ? String(item.ref[0]).split(' ')[0] : 'N/A';
 
@@ -1449,13 +1597,13 @@ document.addEventListener('DOMContentLoaded', () => {
             <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                 <span class="position-badge-premium ${posBadgeClass}">${posBadgeText}</span>
                 <div class="modal-actions" style="display: flex; gap: 10px;">
-                    <button class="compare-btn ${appState.isComparison(item._appId) ? 'active' : ''}" data-id="${item._appId}" aria-label="Comparar">
+                    <button class="product-card__compare-btn ${appState.isComparison(item._appId) ? 'active' : ''}" data-id="${item._appId}" aria-label="Comparar">
                         <svg class="compare-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M7 10h14l-4-4" />
                             <path d="M17 14H3l4 4" />
                         </svg>
                     </button>
-                    <button class="favorite-btn ${appState.isFavorite(item._appId) ? 'active' : ''}" data-id="${item._appId}" aria-label="Marcar como favorito">
+                    <button class="product-card__favorite-btn ${appState.isFavorite(item._appId) ? 'active' : ''}" data-id="${item._appId}" aria-label="Marcar como favorito">
                         <svg class="heart-icon" viewBox="0 0 24 24">
                             <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                         </svg>
@@ -1465,7 +1613,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         // Attach listeners for modal buttons
-        const modalFavBtn = els.modalPosition.querySelector('.favorite-btn');
+        const modalFavBtn = els.modalPosition.querySelector('.product-card__favorite-btn');
         if (modalFavBtn) {
             modalFavBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1476,7 +1624,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        const modalCompBtn = els.modalPosition.querySelector('.compare-btn');
+        const modalCompBtn = els.modalPosition.querySelector('.product-card__compare-btn');
         if (modalCompBtn) {
             modalCompBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1819,14 +1967,252 @@ document.addEventListener('DOMContentLoaded', () => {
             debouncedFilter();
         });
 
-        [els.marca, els.modelo, els.anio, els.oem, els.fmsi, els.medidasAncho, els.medidasAlto].forEach(input =>
-            input.addEventListener('input', debouncedFilter)
-        );
+        // === Smart History System (State-Based with Intelligence) ===
+        interface HistoryItem {
+            id: string;
+            summary: string;
+            filters: {
+                busqueda?: string;
+                marca?: string;
+                modelo?: string;
+                anio?: string;
+                oem?: string;
+                fmsi?: string;
+            };
+            timestamp: number;
+            frequency: number; // How many times used
+            resultCount?: number; // How many results it returned
+        }
 
+        const generateHistoryId = (f: HistoryItem['filters']) => {
+            return Object.entries(f).sort().map(([k, v]) => `${k}:${v}`).join('|');
+        };
+
+        const getRelativeTime = (timestamp: number): string => {
+            const now = Date.now();
+            const diff = now - timestamp;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+
+            if (minutes < 1) return 'Ahora';
+            if (minutes < 60) return `Hace ${minutes} min`;
+            if (hours < 24) return `Hace ${hours}h`;
+            if (days === 1) return 'Ayer';
+            if (days < 7) return `Hace ${days} días`;
+            return new Date(timestamp).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
+        };
+
+        function saveCurrentStateToHistory(resultCount?: number) {
+            const activeFilters: HistoryItem['filters'] = {};
+            const summaries: string[] = [];
+
+            if (els.busqueda.value.trim()) {
+                activeFilters.busqueda = els.busqueda.value.trim();
+                summaries.push(`🔍 ${els.busqueda.value.trim()}`);
+            }
+            if (els.marca.value.trim()) {
+                activeFilters.marca = els.marca.value.trim();
+                summaries.push(`🏷️ ${els.marca.value.trim()}`);
+            }
+            if (els.modelo.value.trim()) {
+                activeFilters.modelo = els.modelo.value.trim();
+                summaries.push(`🚗 ${els.modelo.value.trim()}`);
+            }
+            if (els.anio.value.trim()) {
+                activeFilters.anio = els.anio.value.trim();
+                summaries.push(`📅 ${els.anio.value.trim()}`);
+            }
+            if (els.oem.value.trim()) {
+                activeFilters.oem = els.oem.value.trim();
+                summaries.push(`#️⃣ ${els.oem.value.trim()}`);
+            }
+            if (els.fmsi.value.trim()) {
+                activeFilters.fmsi = els.fmsi.value.trim();
+                summaries.push(`📄 ${els.fmsi.value.trim()}`);
+            }
+
+            if (summaries.length === 0) return;
+
+            const id = generateHistoryId(activeFilters);
+            const rawHistory = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
+
+            let history: HistoryItem[] = rawHistory.map((item: any) => {
+                if (typeof item === 'string') return { id: item, summary: item, filters: { busqueda: item }, timestamp: Date.now(), frequency: 1 };
+                if (item.query && item.type) return { id: item.query, summary: item.query, filters: { [item.type === 'general' ? 'busqueda' : item.type]: item.query }, timestamp: Date.now(), frequency: 1 };
+                return item;
+            });
+
+            const existing = history.find(h => h.id === id);
+
+            if (existing) {
+                // Update existing: increment frequency, update timestamp and result count
+                existing.frequency = (existing.frequency || 1) + 1;
+                existing.timestamp = Date.now();
+                if (resultCount !== undefined) existing.resultCount = resultCount;
+                // Move to top
+                history = history.filter(h => h.id !== id);
+                history.unshift(existing);
+            } else {
+                // New item
+                history.unshift({
+                    id,
+                    summary: summaries.join(' · '),
+                    filters: activeFilters,
+                    timestamp: Date.now(),
+                    frequency: 1,
+                    resultCount
+                });
+            }
+
+            history = history.slice(0, 8); // Keep last 8
+            localStorage.setItem('brakeXSearchHistory', JSON.stringify(history));
+            renderSearchHistory();
+        }
+
+        function deleteFromSearchHistory(id: string) {
+            const rawHistory = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
+            const history = rawHistory.filter((h: any) => (h.id || h.query || h) !== id);
+            localStorage.setItem('brakeXSearchHistory', JSON.stringify(history));
+            renderSearchHistory();
+        }
+
+        function renderSearchHistory() {
+            const container = els.searchHistoryContainer;
+            if (!container) return;
+
+            const rawHistory = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
+            const history: HistoryItem[] = rawHistory.map((item: any) => {
+                if (typeof item === 'string') return { id: item, summary: item, filters: { busqueda: item }, timestamp: Date.now(), frequency: 1 };
+                if (item.query && item.type) return { id: item.query, summary: item.query, filters: { [item.type === 'general' ? 'busqueda' : item.type]: item.query }, timestamp: Date.now(), frequency: 1 };
+                return item;
+            });
+
+            if (history.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-secondary); font-size:0.85rem; padding:12px; text-align:center; opacity:0.7;">Tu historial está vacío. Realiza una búsqueda para empezar.</p>';
+                return;
+            }
+
+            container.innerHTML = history.map(h => `
+            <div class="smart-history-card" data-history-id="${h.id}">
+                <div class="history-card-header">
+                    <div class="history-card-summary">${h.summary}</div>
+                    <button class="history-delete-btn" data-id-delete="${h.id}" aria-label="Eliminar">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="history-card-meta">
+                    <span class="history-meta-item">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        ${getRelativeTime(h.timestamp)}
+                    </span>
+                    ${h.frequency && h.frequency > 1 ? `
+                        <span class="history-meta-item frequency">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                            </svg>
+                            ${h.frequency}x
+                        </span>
+                    ` : ''}
+                    ${h.resultCount !== undefined ? `
+                        <span class="history-meta-item results">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3h7v7H3z"></path>
+                                <path d="M14 3h7v7h-7z"></path>
+                                <path d="M14 14h7v7h-7z"></path>
+                                <path d="M3 14h7v7H3z"></path>
+                            </svg>
+                            ${h.resultCount}
+                        </span>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+        }
+
+        // ... Inside SetupEventListeners ...
+
+        // Trigger Smart Save on Change of ANY filter
+        [els.busqueda, els.marca, els.modelo, els.anio, els.oem, els.fmsi].forEach(input => {
+            input.addEventListener('change', () => saveCurrentStateToHistory());
+        });
+
+        // ... Updated Click Handler ...
+
+        document.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (!target) return;
+
+            // Delete Action (Updated selector)
+            const deleteBtn = target.closest('.history-delete-btn') as HTMLElement;
+            if (deleteBtn) {
+                e.stopPropagation();
+                deleteFromSearchHistory(deleteBtn.dataset.idDelete || '');
+                return;
+            }
+
+            // Restore Action (Updated selector)
+            const historyCard = target.closest('.smart-history-card') as HTMLElement;
+            if (historyCard && !deleteBtn) { // Don't trigger if clicking delete
+                const id = historyCard.dataset.historyId;
+                const rawHistory = JSON.parse(localStorage.getItem('brakeXSearchHistory') || '[]');
+
+                // Find data
+                let item = rawHistory.find((h: any) => (h.id || h.query || h) === id);
+
+                // Normalize if finding old legacy item
+                if (typeof item === 'string') item = { filters: { busqueda: item } };
+                else if (item.query && item.type) item = { filters: { [item.type === 'general' ? 'busqueda' : item.type]: item.query } };
+
+                if (item && item.filters) {
+                    // Restore State
+                    els.busqueda.value = item.filters.busqueda || '';
+                    els.marca.value = item.filters.marca || '';
+                    els.modelo.value = item.filters.modelo || '';
+                    els.anio.value = item.filters.anio || '';
+                    els.oem.value = item.filters.oem || '';
+                    els.fmsi.value = item.filters.fmsi || '';
+
+                    // Trigger Filter
+                    filterData();
+
+                    // Move to top
+                    saveCurrentStateToHistory();
+                }
+            }
+        });
+
+        // Position filter buttons
         [els.posDel, els.posTras].forEach(btn => btn.addEventListener('click', () => {
             btn.classList.toggle('active');
             filterData();
         }));
+
+        // Input debounced filtering
+        [els.marca, els.modelo, els.anio, els.oem, els.fmsi, els.medidasAncho, els.medidasAlto].forEach(input =>
+            input.addEventListener('input', debouncedFilter)
+        );
+
+
+
+        // Modern Pulse Effect
+        const createPulse = (btn: HTMLElement) => {
+            const ripple = document.createElement('span');
+            ripple.classList.add('btn-pulse-effect');
+            const rect = btn.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            ripple.style.width = ripple.style.height = `${size}px`;
+            ripple.style.left = `${rect.width / 2 - size / 2}px`;
+            ripple.style.top = `${rect.height / 2 - size / 2}px`;
+            btn.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 600);
+        };
 
         els.clearBtn.addEventListener('click', () => {
             if (els.clearBtn.disabled) return;
@@ -1835,7 +2221,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const trashBody = els.clearBtn.querySelector('.trash-body');
             if (trashLid) trashLid.classList.add('animate-lid');
             if (trashBody) trashBody.classList.add('animate-body');
-            createSparks(els.clearBtn);
+
+            // Modern pulse instead of sparks
+            createPulse(els.clearBtn);
+
             clearAllFilters();
             setTimeout(() => {
                 if (trashLid) trashLid.classList.remove('animate-lid');
@@ -1908,24 +2297,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        document.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            if (!target) return;
-            const deleteBtn = target.closest('.delete-history-item') as HTMLElement;
-            if (deleteBtn) {
-                e.stopPropagation();
-                deleteFromSearchHistory(deleteBtn.dataset.queryDelete || '');
-            } else {
-                const historyItem = target.closest('.search-history-item') as HTMLElement;
-                if (historyItem) {
-                    const query = historyItem.dataset.query || '';
-                    els.busqueda.value = query;
-                    addToSearchHistory(query);
-                    filterData();
-                    els.busqueda.focus();
-                }
-            }
-        });
+
 
         // Modales
         els.modalCloseBtn.addEventListener('click', closeModal);
@@ -1943,7 +2315,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (compareBtn && comparisonModal) {
             compareBtn.addEventListener('click', () => {
                 if (appState.comparisons.size < 2) {
-                    alert("Selecciona al menos 2 productos para comparar.");
+                    showToastNotification("Información", "Selecciona al menos 2 productos para comparar.");
                     return;
                 }
                 renderComparisonView();
@@ -1976,21 +2348,27 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Estructura de Tabla para alineación perfecta
+        // Estructura de Tabla Compacta V2
         let tableHTML = `
         <div class="comparison-table-wrapper">
             <table class="comparison-table">
+                <colgroup>
+                    <col class="label-col">
+                    ${items.map(() => '<col class="data-col">').join('')}
+                </colgroup>
                 <thead>
                     <tr>
-                        <th>Producto</th>
+                        <th style="text-align:left;">PRODUCTO</th>
                         ${items.map(item => `
                             <th>
-                                <div style="display:flex; flex-direction:column; align-items:center;">
-                                    <span style="font-size:1.1rem; color:var(--primary-color);">
-                                        ${item.ref && item.ref[0] ? item.ref[0] : 'Ref N/A'}
+                                <div class="comp-product-header">
+                                    <span class="comp-ref-title" title="${item.ref?.[0] || ''}">
+                                        ${item.ref && item.ref[0] ? item.ref[0] : 'N/A'}
                                     </span>
-                                    <button class="comp-remove-btn" onclick="(window as any).toggleComparisonGlobally('${item._appId}'); document.getElementById('compareBtn').click();">
-                                        Quitar
+                                    <button class="comp-remove-btn" onclick="(window as any).toggleComparisonGlobally('${item._appId}'); document.getElementById('compareBtn').click();" title="Quitar">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M18 6L6 18M6 6l12 12"></path>
+                                        </svg>
                                     </button>
                                 </div>
                             </th>
@@ -1999,45 +2377,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Imagen</td>
+                        <td>IMAGEN</td>
                         ${items.map(item => `
                             <td>
-                                <img src="${item.imagenes && item.imagenes[0] ? item.imagenes[0] : (item.imagen || '')}" class="comparison-image" alt="Producto">
+                                <div class="comparison-image-container">
+                                    <img src="${item.imagenes && item.imagenes[0] ? item.imagenes[0] : (item.imagen || '')}" class="comparison-image" alt="Producto">
+                                </div>
                             </td>
                         `).join('')}
                     </tr>
                     <tr>
-                        <td>Posición</td>
-                        ${items.map(item => `
-                            <td>
-                                <span class="position-badge-premium ${item.posicion ? item.posicion.toLowerCase() : ''}">${item.posicion || 'N/A'}</span>
-                            </td>
-                        `).join('')}
+                        <td>POSICIÓN</td>
+                        ${items.map(item => {
+            let posClass = 'default';
+            const posLower = (item.posición || '').toLowerCase();
+            if (posLower.includes('delantera') && posLower.includes('trasera')) posClass = 'ambas';
+            else if (posLower.includes('delantera')) posClass = 'delantera';
+            else if (posLower.includes('trasera')) posClass = 'trasera';
+
+            return `
+                                <td style="text-align:center;">
+                                    <span class="position-badge-premium ${posClass}">
+                                        ${item.posición || 'N/A'}
+                                    </span>
+                                </td>
+                            `;
+        }).join('')}
                     </tr>
                     <tr>
-                        <td>Medidas (mm)</td>
+                        <td>MEDIDAS</td>
                         ${items.map(item => `
-                            <td><strong>${item.anchoNum || '-'}</strong> x <strong>${item.altoNum || '-'}</strong></td>
+                            <td class="comp-value-bold" style="text-align:center;">${item.anchoNum || '-'} x ${item.altoNum || '-'}</td>
                         `).join('')}
                     </tr>
                     <tr>
                         <td>FMSI</td>
                         ${items.map(item => `
-                            <td>${Array.isArray(item.fmsi) ? item.fmsi.join(', ') : (item.fmsi || '-')}</td>
+                            <td class="comp-value-dim" style="text-align:center;">${Array.isArray(item.fmsi) ? item.fmsi[0] : (item.fmsi || '-')}</td>
                         `).join('')}
                     </tr>
                     <tr>
                         <td>OEM</td>
                         ${items.map(item => `
-                            <td style="font-size:0.85rem;">${Array.isArray(item.oem) ? item.oem.slice(0, 5).join(', ') + (item.oem.length > 5 ? '...' : '') : '-'}</td>
+                            <td class="comp-value-dim" style="font-size:0.85rem;">
+                                ${Array.isArray(item.oem) ? item.oem.slice(0, 5).join(', ') + (item.oem.length > 5 ? '...' : '') : '-'}
+                            </td>
                         `).join('')}
                     </tr>
                     <tr>
-                        <td>Aplicaciones</td>
+                        <td>APLICACIONES</td>
                         ${items.map(item => `
                             <td>
                                 <ul class="apps-list-compact">
-                                    ${(item.aplicaciones || []).map(app => `<li>${app.marca} ${app.modelo} ${app.año}</li>`).join('')}
+                                    ${(item.aplicaciones || []).slice(0, 4).map(app => `
+                                        <li><strong>${app.marca}</strong> ${app.modelo} ${app.año}</li>
+                                    `).join('')}
+                                    ${(item.aplicaciones || []).length > 4 ? '<li style="color:#999; font-style:italic;">+ más...</li>' : ''}
                                 </ul>
                             </td>
                         `).join('')}
