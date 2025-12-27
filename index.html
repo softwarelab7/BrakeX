@@ -9,14 +9,117 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/style.css?v=2" />
     <link rel="stylesheet" href="css/toast.css" />
     <link rel="stylesheet" href="css/notification-action.css" />
     <link rel="stylesheet" href="css/notif-buttons.css" />
     <link rel="stylesheet" href="css/custom_dropdown.css" />
     <link rel="stylesheet" href="css/comparison.css" />
+    <link rel="stylesheet" href="css/dark_mode_animation.css" />
+    <link rel="stylesheet" href="css/amoled.css" />
+    <link rel="stylesheet" href="css/responsive.css" />
     <link rel="icon" type="image/svg+xml" href="favicon-x.svg" />
+    <style>
+        /* FORCE OVERRIDE FOR BADGES - CRITICAL */
+
+        /* 1. Base Styles (Shape & Text) */
+        .fav-count-badge,
+        #notificationBadge,
+        #compareCountBadge,
+        #cartBadge,
+        #favCountBadge {
+            position: absolute !important;
+            top: -6px !important;
+            /* Adjusted closer per user request */
+            right: -6px !important;
+            color: #fff !important;
+            font-size: 0.7rem !important;
+            font-weight: 700 !important;
+            min-width: 18px !important;
+            height: 18px !important;
+            border-radius: 9px !important;
+            /* Pill Shape */
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 4px !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+            z-index: 9999 !important;
+            border: 2px solid #fff !important;
+        }
+
+        /* 2. Specific Colors */
+
+        /* Favorites: RED */
+        #favCountBadge,
+        .fav-count-badge {
+            background-color: #FF3040 !important;
+        }
+
+        /* Notifications: ORANGE */
+        #notificationBadge {
+            background-color: #f97316 !important;
+        }
+
+        /* Compare: CYAN */
+        #compareCountBadge {
+            background-color: #06b6d4 !important;
+        }
+
+        /* 3. Utility - Hide when empty/zero */
+        .fav-count-badge.hidden,
+        #notificationBadge.hidden,
+        #compareCountBadge.hidden,
+        #favCountBadge.hidden {
+            display: none !important;
+        }
+
+        /* 4. Dark Mode Border Override */
+        body.lp-dark .fav-count-badge,
+        body.modo-orbital .fav-count-badge,
+        body.lp-dark #notificationBadge,
+        body.modo-orbital #notificationBadge,
+        body.lp-dark #compareCountBadge,
+        body.modo-orbital #compareCountBadge {
+            border-color: #1e293b !important;
+        }
+
+        /* 5. Active State Overrides & Heart Fixes */
+
+        /* Fix: Heart Icon Colors in Dark/Orbital Modes */
+        /* Ensure the heart path is ALWAYS Red or Transparent, never white */
+        /* Fix: Heart Icon Colors in Dark/Orbital Modes */
+        /* ONLY target .heart (outline) to prevent overriding .thread animation */
+        body.lp-dark #filtroFavoritosBtn .like svg .heart,
+        body.modo-orbital #filtroFavoritosBtn .like svg .heart {
+            stroke: #ffffff !important;
+            fill: transparent !important;
+        }
+
+        /* Active State: Let style.css handle .thread animation. 
+           We only ensure .heart remains correct (invisible or correct color) */
+
+        /* NOTE: .thread is handled by style.css keyframes 'threadheart' which fills red.
+           We do NOT need to force fill here, as it kills the animation. */
+
+        /* Fix Double Heart: Hide the outline heart when active so only the thread animation is visible */
+        #filtroFavoritosBtn.active .like svg .heart,
+        .view-btn.active .like svg .heart {
+            opacity: 0 !important;
+            transform: scale(0.5);
+        }
+
+        /* History Button Active Color override (Blue instead of yellow) */
+        #historialBtn.active svg,
+        #historialBtn.active {
+            color: #4893FC !important;
+            /* Corporate Blue */
+            stroke: #4893FC !important;
+        }
+    </style>
+
 </head>
 
 <body>
@@ -34,10 +137,118 @@
         </h1>
         <div class="header-actions">
             <!-- Notifications Button Moved Here (previously Favorites was here erroneously) -->
+            <!-- 3-State Theme Toggle -->
+            <div class="theme-switch-wrapper">
+                <div class="tri-state-toggle" title="Clic para cambiar tema: Claro / Oscuro / Orbital"
+                    id="themeTriToggle">
+                    <input type="radio" name="theme_state" id="theme_light" value="light">
+                    <input type="radio" name="theme_state" id="theme_dark" value="dark">
+                    <input type="radio" name="theme_state" id="theme_orbital" value="orbital">
+
+                    <div class="slider round">
+                        <div class="sun-moon">
+                            <div class="sun-moon-body"></div>
+                            <svg id="moon-dot-1" class="moon-dot" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="50"></circle>
+                            </svg>
+                            <svg id="moon-dot-2" class="moon-dot" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="50"></circle>
+                            </svg>
+                            <svg id="moon-dot-3" class="moon-dot" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="50"></circle>
+                            </svg>
+                            <svg id="light-ray-1" class="light-ray" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="50"></circle>
+                            </svg>
+                            <svg id="light-ray-2" class="light-ray" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="50"></circle>
+                            </svg>
+                            <svg id="light-ray-3" class="light-ray" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="50"></circle>
+                            </svg>
+                            <div class="planet-ring"></div>
+                            <div class="planet-ring-front"></div>
+                        </div>
+
+                        <svg id="cloud-1" class="cloud-dark" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="50"></circle>
+                        </svg>
+                        <svg id="cloud-2" class="cloud-dark" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="50"></circle>
+                        </svg>
+                        <svg id="cloud-3" class="cloud-dark" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="50"></circle>
+                        </svg>
+                        <svg id="cloud-4" class="cloud-light" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="50"></circle>
+                        </svg>
+                        <svg id="cloud-5" class="cloud-light" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="50"></circle>
+                        </svg>
+                        <svg id="cloud-6" class="cloud-light" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="50"></circle>
+                        </svg>
+
+                        <div class="stars">
+                            <svg id="star-1" class="star" viewBox="0 0 20 20">
+                                <path
+                                    d="M 0 10 C 10 10,10 10 ,0 10 C 10 10 , 10 10 , 10 20 C 10 10 , 10 10 , 20 10 C 10 10 , 10 10 , 10 0 C 10 10,10 10 ,0 10 Z">
+                                </path>
+                            </svg>
+                            <svg id="star-2" class="star" viewBox="0 0 20 20">
+                                <path
+                                    d="M 0 10 C 10 10,10 10 ,0 10 C 10 10 , 10 10 , 10 20 C 10 10 , 10 10 , 20 10 C 10 10 , 10 10 , 10 0 C 10 10,10 10 ,0 10 Z">
+                                </path>
+                            </svg>
+                            <svg id="star-3" class="star" viewBox="0 0 20 20">
+                                <path
+                                    d="M 0 10 C 10 10,10 10 ,0 10 C 10 10 , 10 10 , 10 20 C 10 10 , 10 10 , 20 10 C 10 10 , 10 10 , 10 0 C 10 10,10 10 ,0 10 Z">
+                                </path>
+                            </svg>
+                            <svg id="star-4" class="star" viewBox="0 0 20 20">
+                                <path
+                                    d="M 0 10 C 10 10,10 10 ,0 10 C 10 10 , 10 10 , 10 20 C 10 10 , 10 10 , 20 10 C 10 10 , 10 10 , 10 0 C 10 10,10 10 ,0 10 Z">
+                                </path>
+                            </svg>
+                            <!-- Orbital Stars -->
+                            <svg id="star-5" class="star" viewBox="0 0 20 20">
+                                <path
+                                    d="M 0 10 C 10 10,10 10 ,0 10 C 10 10 , 10 10 , 10 20 C 10 10 , 10 10 , 20 10 C 10 10 , 10 10 , 10 0 C 10 10,10 10 ,0 10 Z">
+                                </path>
+                            </svg>
+                            <svg id="star-6" class="star" viewBox="0 0 20 20">
+                                <path
+                                    d="M 0 10 C 10 10,10 10 ,0 10 C 10 10 , 10 10 , 10 20 C 10 10 , 10 10 , 20 10 C 10 10 , 10 10 , 10 0 C 10 10,10 10 ,0 10 Z">
+                                </path>
+                            </svg>
+                            <svg id="star-7" class="star" viewBox="0 0 20 20">
+                                <path
+                                    d="M 0 10 C 10 10,10 10 ,0 10 C 10 10 , 10 10 , 10 20 C 10 10 , 10 10 , 20 10 C 10 10 , 10 10 , 10 0 C 10 10,10 10 ,0 10 Z">
+                                </path>
+                            </svg>
+                            <svg id="star-8" class="star" viewBox="0 0 20 20">
+                                <path
+                                    d="M 0 10 C 10 10,10 10 ,0 10 C 10 10 , 10 10 , 10 20 C 10 10 , 10 10 , 20 10 C 10 10 , 10 10 , 10 0 C 10 10,10 10 ,0 10 Z">
+                                </path>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Click zones -->
+                    <div class="toggle-click-zone click-zone-light"></div>
+                    <div class="toggle-click-zone click-zone-dark"></div>
+                    <div class="toggle-click-zone click-zone-orbital"></div>
+                </div>
+            </div>
+
             <div class="notification-wrapper" style="position: relative; display: inline-block;">
                 <button type="button" class="view-btn header-notif-btn" id="notificacionesBtn"
                     aria-label="Notificaciones">
-                    <i class="bi bi-bell" style="font-size: 1.1rem;"></i>
+                    <svg class="notification-icon ios-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
                     <span class="fav-count-badge hidden" id="notificationBadge">0</span>
                 </button>
                 <!-- Notification Panel -->
@@ -194,33 +405,39 @@
                     <div class="result-count-container" id="result-count-container" aria-live="polite"
                         aria-atomic="true">0 resultados</div>
                     <div class="view-toggle-buttons" role="radiogroup" aria-label="Vistas">
-                        <button type="button" class="view-btn" id="filtroFavoritosBtn" aria-pressed="false"
-                            aria-label="Mostrar solo favoritos">
-                            <svg class="heart-icon" viewBox="0 0 24 24">
-                                <path
-                                    d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                            </svg>
-                            <span class="fav-count-badge hidden" id="favCountBadge">0</span>
-                        </button>
-                        <button type="button" class="view-btn" id="historialBtn" aria-pressed="false"
-                            aria-label="Mostrar historial de búsqueda">
-                            <svg class="history-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M1 4v6h6"></path>
-                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                                <polyline points="12 7 12 12 15 15"></polyline>
-                            </svg>
-
-                        </button>
-
-                        <!-- Botón de Comparación -->
+                        <!-- Botón de Comparación (Moved to start) -->
                         <button type="button" class="view-btn" id="compareBtn" aria-label="Comparar productos">
-                            <svg class="compare-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M7 10h14l-4-4" />
-                                <path d="M17 14H3l4 4" />
+                            <svg class="compare-icon ios-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 8h16M16 4l4 4-4 4"></path>
+                                <path d="M20 16H4M8 12l-4 4 4 4"></path>
                             </svg>
                             <span class="fav-count-badge hidden" id="compareCountBadge">0</span>
+                        </button>
+
+                        <button type="button" class="view-btn" id="filtroFavoritosBtn" aria-pressed="false"
+                            aria-label="Mostrar solo favoritos">
+                            <div class="like" style="pointer-events: none; width: auto; height: auto;">
+                                <svg width="24" height="22" viewBox="0 0 24 22" fill="none"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M1.5 7.827C1.5 4.0992 3.5 1.5 7.54036 1.5C10 1.5 11.5646 2.93172 13.5323 5.5C15.5 8.06828 16 12 12 12C8 12 8.5 7.827 10.4677 5.5C12 3.5 14 1.5 16.4596 1.5C20.5 1.5 22.5 4.0992 22.5 7.827C22.5 14.5 12.525 20.5 12 20.5C11.475 20.5 1.5 14.5 1.5 7.827Z"
+                                        stroke="#FF3040" stroke-width="3" class="thread" />
+                                    <path
+                                        d="M1 7.66C1 12.235 4.899 16.746 10.987 20.594C11.325 20.797 11.727 21 12 21C12.283 21 12.686 20.797 13.013 20.594C19.1 16.746 23 12.234 23 7.66C23 3.736 20.245 1 16.672 1C14.603 1 12.98 1.94 12 3.352C11.042 1.952 9.408 1 7.328 1C3.766 1 1 3.736 1 7.66Z"
+                                        stroke-width="2" class="heart" />
+                                </svg>
+                            </div>
+                            <span class="fav-count-badge hidden" id="favCountBadge">0</span>
+                        </button>
+
+                        <button type="button" class="view-btn" id="historialBtn" aria-pressed="false"
+                            aria-label="Mostrar historial de búsqueda">
+                            <svg class="history-icon ios-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
                         </button>
 
 
@@ -288,11 +505,7 @@
                         </defs>
                     </svg>
                 </a>
-                <a href="https://qwen.ai/" target="_blank" rel="noopener noreferrer" aria-label="Qwen Chat">
-                    <img src="https://assets.alicdn.com/g/qwenweb/qwen-webui-fe/0.0.243/static/qwen_row_text_icon_light_540.png"
-                        class="tool-logo" alt="Qwen Chat Logo"
-                        style="height: 18px; opacity: 0.8; position: relative; top: -1px;">
-                </a>
+
             </div>
             <div class="footer-copyright">&copy; 2026 Brake X. Todos los derechos reservados.</div>
         </div>

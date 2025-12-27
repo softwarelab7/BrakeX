@@ -1419,18 +1419,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const isComparison = appState.isComparison(item._appId); // Asumiendo que isComparison existe en AppState
 
             const favoriteBtnHTML = `
-                <button class="favorite-btn ${isFavorite ? 'active' : ''}" data-id="${item._appId}" aria-label="Marcar como favorito" aria-pressed="${isFavorite}">
-                    <svg class="heart-icon" viewBox="0 0 24 24">
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                    </svg>
+                <button class="like favorite-btn ${isFavorite ? 'active' : ''}" data-id="${item._appId}" aria-label="Marcar como favorito" aria-pressed="${isFavorite}">
+                  <svg width="24" height="22" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1.5 7.827C1.5 4.0992 3.5 1.5 7.54036 1.5C10 1.5 11.5646 2.93172 13.5323 5.5C15.5 8.06828 16 12 12 12C8 12 8.5 7.827 10.4677 5.5C12 3.5 14 1.5 16.4596 1.5C20.5 1.5 22.5 4.0992 22.5 7.827C22.5 14.5 12.525 20.5 12 20.5C11.475 20.5 1.5 14.5 1.5 7.827Z" stroke="#FF3040" stroke-width="3" class="thread"/>
+                    <path d="M1 7.66C1 12.235 4.899 16.746 10.987 20.594C11.325 20.797 11.727 21 12 21C12.283 21 12.686 20.797 13.013 20.594C19.1 16.746 23 12.234 23 7.66C23 3.736 20.245 1 16.672 1C14.603 1 12.98 1.94 12 3.352C11.042 1.952 9.408 1 7.328 1C3.766 1 1 3.736 1 7.66Z" stroke="white" stroke-width="2" class="heart"/>
+                  </svg>
                 </button>
             `;
 
             const compareBtnHTML = `
                 <button class="compare-btn ${isComparison ? 'active' : ''}" data-id="${item._appId}" aria-label="Comparar" aria-pressed="${isComparison}">
-                     <svg class="compare-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M7 10h14l-4-4" />
-                        <path d="M17 14H3l4 4" />
+                    <svg class="compare-icon ios-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 8h16M16 4l4 4-4 4"></path>
+                        <path d="M20 16H4M8 12l-4 4 4 4"></path>
                     </svg>
                 </button>
             `;
@@ -1475,6 +1476,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
+        // Listeners para Favoritos
         // Listeners para Favoritos
         els.results.querySelectorAll('.product-card__favorite-btn').forEach(btn => {
             btn.addEventListener('click', toggleFavorite);
@@ -1535,7 +1537,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // === Modal ===
     function handleCardClick(event: MouseEvent) {
         const target = event.target as HTMLElement;
-        if (!target || target.closest('.product-card__favorite-btn')) return;
+        // Robust ignoring of action buttons
+        if (!target) return;
+
+        if (target.closest('.product-card__favorite-btn') ||
+            target.closest('.like') ||
+            target.closest('.product-card__compare-btn') ||
+            target.closest('.compare-btn')) {
+            return;
+        }
+
         const card = target.closest('.product-card') as HTMLElement;
         if (card) {
             const itemId = card.dataset.id;
@@ -1598,14 +1609,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="position-badge-premium ${posBadgeClass}">${posBadgeText}</span>
                 <div class="modal-actions" style="display: flex; gap: 10px;">
                     <button class="product-card__compare-btn ${appState.isComparison(item._appId) ? 'active' : ''}" data-id="${item._appId}" aria-label="Comparar">
-                        <svg class="compare-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M7 10h14l-4-4" />
-                            <path d="M17 14H3l4 4" />
+                        <svg class="compare-icon ios-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 8h16M16 4l4 4-4 4"></path>
+                            <path d="M20 16H4M8 12l-4 4 4 4"></path>
                         </svg>
                     </button>
-                    <button class="product-card__favorite-btn ${appState.isFavorite(item._appId) ? 'active' : ''}" data-id="${item._appId}" aria-label="Marcar como favorito">
-                        <svg class="heart-icon" viewBox="0 0 24 24">
-                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    <button class="like product-card__favorite-btn ${appState.isFavorite(item._appId) ? 'active' : ''}" data-id="${item._appId}" aria-label="Marcar como favorito">
+                        <svg width="24" height="22" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M1.5 7.827C1.5 4.0992 3.5 1.5 7.54036 1.5C10 1.5 11.5646 2.93172 13.5323 5.5C15.5 8.06828 16 12 12 12C8 12 8.5 7.827 10.4677 5.5C12 3.5 14 1.5 16.4596 1.5C20.5 1.5 22.5 4.0992 22.5 7.827C22.5 14.5 12.525 20.5 12 20.5C11.475 20.5 1.5 14.5 1.5 7.827Z" stroke="#FF3040" stroke-width="3" class="thread"/>
+                            <path d="M1 7.66C1 12.235 4.899 16.746 10.987 20.594C11.325 20.797 11.727 21 12 21C12.283 21 12.686 20.797 13.013 20.594C19.1 16.746 23 12.234 23 7.66C23 3.736 20.245 1 16.672 1C14.603 1 12.98 1.94 12 3.352C11.042 1.952 9.408 1 7.328 1C3.766 1 1 3.736 1 7.66Z" stroke="white" stroke-width="2" class="heart"/>
                         </svg>
                     </button>
                 </div>
@@ -1835,6 +1847,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [els.darkBtn, els.upBtn, els.orbitalBtn, els.clearBtn].forEach(btn => btn?.addEventListener('click', (e) => createRippleEffect(e as MouseEvent)));
         // Temas
+        // Temas
         const applyLightTheme = () => {
             els.body.classList.remove('lp-dark', 'modo-orbital');
             els.darkBtn.setAttribute('aria-pressed', 'false');
@@ -1848,6 +1861,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.orbitalBtn.classList.remove('active');
                 els.orbitalBtn.setAttribute('aria-pressed', 'false');
             }
+            // Sync new toggle
+            const lightRadio = document.getElementById('theme_light') as HTMLInputElement;
+            if (lightRadio) lightRadio.checked = true;
+
             localStorage.setItem('themePreference', 'light');
         };
         const applyAmoledDarkTheme = () => {
@@ -1864,6 +1881,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.orbitalBtn.classList.remove('active');
                 els.orbitalBtn.setAttribute('aria-pressed', 'false');
             }
+            // Sync new toggle
+            const darkRadio = document.getElementById('theme_dark') as HTMLInputElement;
+            if (darkRadio) darkRadio.checked = true;
+
             localStorage.setItem('themePreference', 'dark');
         };
         const applyOrbitalTheme = () => {
@@ -1880,8 +1901,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.orbitalBtn.classList.add('active');
                 els.orbitalBtn.setAttribute('aria-pressed', 'true');
             }
+            // Sync new toggle
+            const orbitalRadio = document.getElementById('theme_orbital') as HTMLInputElement;
+            if (orbitalRadio) orbitalRadio.checked = true;
+
             localStorage.setItem('themePreference', 'orbital');
         };
+
+        // Listen for new toggle changes
+        const themeRadios = document.querySelectorAll('input[name="theme_state"]');
+        themeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const val = (e.target as HTMLInputElement).value;
+                if (val === 'light') applyLightTheme();
+                else if (val === 'dark') applyAmoledDarkTheme();
+                else if (val === 'orbital') applyOrbitalTheme();
+            });
+        });
+
         els.darkBtn.addEventListener('click', () => {
             els.headerX.style.animation = 'bounceHeader 0.6s cubic-bezier(0.68,-0.55,0.27,1.55)';
             setTimeout(() => els.headerX.style.animation = '', 600);
